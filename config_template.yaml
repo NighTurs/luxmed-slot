@@ -1,0 +1,19 @@
+telegram:
+  bot_token: ""  # The token for your Telegram bot. Obtain this token by creating a bot with BotFather on Telegram.
+  user: "" # The Telegram user ID who will receive notifications.
+
+credentials:
+  username: "" # Your LuxMed portal login email address.
+  password: "" # Your LuxMed portal password.
+
+settings:
+  check_interval: 60  # Time interval (in seconds) between each check for new appointments. Adjust this to control how frequently the script checks for available appointments.
+
+
+portal:
+  login_url: "https://portalpacjenta.luxmed.pl"
+  # A list of services you want to monitor for appointments.
+  # "Skierowania" titles.
+  services:
+    - Laryngolog
+    - Okulista - badanie dna oka
