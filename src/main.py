@@ -30,8 +30,77 @@ SERVICES = config["portal"]["services"]
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 
+def non_referral_path(driver: webdriver.Chrome, service: str):
+    driver.maximize_window()
+    # Locate the first "Umów" button with the class 'btn-book-visit' on the page
+    umow_button = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "(//button[contains(@class, 'btn-book-visit')])[1]"))
+    )
+
+    # Click the button
+    driver.execute_script("arguments[0].click();", umow_button)
+
+    # Locate the form group containing the label "Usługa"
+    usluga_form_group = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//label[text()=' Usługa ']/ancestor::div[contains(@class, 'form-group')]"))
+    )
+
+
+    # Find the relevant input within this form group
+    usluga_input = usluga_form_group.find_element(By.XPATH, ".//input[contains(@class, 'form-control')]")
+    driver.execute_script("arguments[0].click();", usluga_input)
+
+    # Wait for the dropdown menu to appear
+    dermatolog_option = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable(
+            (By.XPATH, f"//div[contains(@class, 'multi-select-item') and text()='{service}']")
+        )
+    )
+
+    # Click the "Dermatolog" option
+    dermatolog_option.click()
+
+
+def referral_path(driver: webdriver.Chrome, service: str):
+    skierowania_button = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//span[text()='Skierowania']/ancestor::app-shortcut-item")
+        )
+    )
+
+    # Click the "Skierowania" button
+    skierowania_button.click()
+
+    service_text_element = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((By.XPATH, f"//span[text()='{service}']"))
+    )
+
+    # Navigate up to the parent div that contains the button
+    parent_div = service_text_element.find_element(
+        By.XPATH, "./ancestor::div[contains(@class, 'top')]"
+    )
+
+    # Now find the "Umów" button within this div
+    umow_button = parent_div.find_element(By.XPATH, ".//button[@id='buttonBookTerm']")
+
+    # Scroll the button into view
+    driver.execute_script("arguments[0].scrollIntoView(true);", umow_button)
+
+    # Optionally, wait a moment to ensure scrolling is completed
+    WebDriverWait(driver, 1).until(
+        EC.element_to_be_clickable((By.XPATH, ".//button[@id='buttonBookTerm']"))
+    )
+
+    # Use JavaScript to click the button
+    driver.execute_script("arguments[0].click();", umow_button)
+
+
 # Function to check appointment availability
-def check_appointments(driver, service):
+def check_appointments(driver: webdriver.Chrome, service: str, is_referral: bool):
+    if not is_referral:
+        driver.maximize_window()
+
     # Navigate to the login page
     driver.get(LOGIN_URL)
 
@@ -50,37 +119,11 @@ def check_appointments(driver, service):
     login_button = driver.find_element(By.ID, "LoginSubmit")
     login_button.click()
 
-    skierowania_button = WebDriverWait(driver, 20).until(
-        EC.presence_of_element_located(
-            (By.XPATH, "//span[text()='Skierowania']/ancestor::app-shortcut-item")
-        )
-    )
+    if is_referral:
+        referral_path(driver, service)
+    else:
+        non_referral_path(driver, service)
 
-    # Click the "Skierowania" button
-    skierowania_button.click()
-
-    okulistra_text_element = WebDriverWait(driver, 20).until(
-        EC.presence_of_element_located((By.XPATH, f"//span[text()='{service}']"))
-    )
-
-    # Navigate up to the parent div that contains the button
-    parent_div = okulistra_text_element.find_element(
-        By.XPATH, "./ancestor::div[contains(@class, 'top')]"
-    )
-
-    # Now find the "Umów" button within this div
-    umow_button = parent_div.find_element(By.XPATH, ".//button[@id='buttonBookTerm']")
-
-    # Scroll the button into view
-    driver.execute_script("arguments[0].scrollIntoView(true);", umow_button)
-
-    # Optionally, wait a moment to ensure scrolling is completed
-    WebDriverWait(driver, 1).until(
-        EC.element_to_be_clickable((By.XPATH, ".//button[@id='buttonBookTerm']"))
-    )
-
-    # Use JavaScript to click the button
-    driver.execute_script("arguments[0].click();", umow_button)
 
     # Wait until the "Szukaj" button is clickable
     szukaj_button = WebDriverWait(driver, 20).until(
@@ -138,7 +181,7 @@ async def monitor_appointments():
             for service in SERVICES:
                 # Set up the web driver
                 driver = webdriver.Chrome()
-                appointments = check_appointments(driver, service)
+                appointments = check_appointments(driver, service['name'], service['is_referral'])
                 if appointments:
                     await send_telegram_message(service, appointments)
         except KeyboardInterrupt:

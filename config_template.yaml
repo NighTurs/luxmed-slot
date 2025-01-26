@@ -15,5 +15,7 @@ portal:
   # A list of services you want to monitor for appointments.
   # "Skierowania" titles.
   services:
-    - Laryngolog
-    - Okulista - badanie dna oka
+    - name: Laryngolog
+      is_referral: True
+    - name: Okulista - badanie dna oka
+      is_referral: False
