@@ -119,11 +119,18 @@ def check_appointments(driver: webdriver.Chrome, service: str, is_referral: bool
     login_button = driver.find_element(By.ID, "LoginSubmit")
     login_button.click()
 
+    # Wait until the "Szukaj" button is clickable
+    pomin_button = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Pomiń')]"))
+    )
+
+    # Click the button
+    pomin_button.click()
+
     if is_referral:
         referral_path(driver, service)
     else:
         non_referral_path(driver, service)
-
 
     # Wait until the "Szukaj" button is clickable
     szukaj_button = WebDriverWait(driver, 20).until(
