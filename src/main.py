@@ -41,15 +41,14 @@ def non_referral_path(driver: webdriver.Chrome, service: str):
     driver.execute_script("arguments[0].click();", umow_button)
 
     # Locate the form group containing the label "Usługa"
-    usluga_form_group = WebDriverWait(driver, 20).until(
-        EC.presence_of_element_located(
-            (By.XPATH, "//label[text()=' Usługa ']/ancestor::div[contains(@class, 'form-group')]"))
+    usluga_click_area = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable(
+            (By.CSS_SELECTOR, "app-service-dropdown-control .click-area")
+        )
     )
 
-
-    # Find the relevant input within this form group
-    usluga_input = usluga_form_group.find_element(By.XPATH, ".//input[contains(@class, 'form-control')]")
-    driver.execute_script("arguments[0].click();", usluga_input)
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", usluga_click_area)
+    driver.execute_script("arguments[0].click();", usluga_click_area)
 
     # Wait for the dropdown menu to appear
     dermatolog_option = WebDriverWait(driver, 20).until(
