@@ -57,7 +57,7 @@ def non_referral_path(driver: webdriver.Chrome, service: str):
         )
     )
 
-    # Click the "Dermatolog" option
+    # Click the option
     dermatolog_option.click()
 
 
@@ -95,8 +95,79 @@ def referral_path(driver: webdriver.Chrome, service: str):
     driver.execute_script("arguments[0].click();", umow_button)
 
 
+def guided_path(driver: webdriver.Chrome, service: str, service_subtype: str):
+    """
+    Path for services that require a sub-type questionnaire (e.g. Higiena stomatologiczna).
+    Steps:
+      1. Click Umów button
+      2. Open service dropdown, type-search and click the service
+      3. Select the radio button matching service_subtype
+      4. Click Dalej
+      5. Click the suggested 'wizyta w placówce' action button
+    """
+    driver.maximize_window()
+
+    # Click Umów
+    umow_button = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "(//button[contains(@class, 'btn-book-visit')])[1]"))
+    )
+    driver.execute_script("arguments[0].click();", umow_button)
+    time.sleep(2)
+
+    # Open dropdown and type to filter
+    usluga_click_area = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, "app-service-dropdown-control .click-area"))
+    )
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", usluga_click_area)
+    driver.execute_script("arguments[0].click();", usluga_click_area)
+    time.sleep(1)
+
+    text_input = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, "app-service-dropdown-control input.text-input"))
+    )
+    text_input.click()
+    # Type first word to filter results
+    text_input.send_keys(service.split()[0])
+    time.sleep(1)
+
+    # Click matching item via JS (items may not be "clickable" in Selenium's sense)
+    items = driver.find_elements(By.XPATH, "//div[contains(@class, 'multi-select-item')]")
+    for item in items:
+        if service in item.text.strip():
+            driver.execute_script("arguments[0].click();", item)
+            break
+    time.sleep(2)
+
+    # Select the radio button for the sub-type
+    czysz_label = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located(
+            (By.XPATH, f"//label[contains(@class, 'answer') and contains(., '{service_subtype}')]")
+        )
+    )
+    driver.execute_script("arguments[0].click();", czysz_label)
+    time.sleep(1)
+
+    # Click Dalej (wait until it's not disabled)
+    dalej_btn = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//button[contains(text(), 'Dalej') and not(@disabled)]")
+        )
+    )
+    driver.execute_script("arguments[0].click();", dalej_btn)
+    time.sleep(2)
+
+    # Click the suggested "wizyta w placówce" action button
+    placowce_btn = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//button[contains(@class, 'action-button') and contains(text(), 'placówce')]")
+        )
+    )
+    driver.execute_script("arguments[0].click();", placowce_btn)
+    time.sleep(2)
+
+
 # Function to check appointment availability
-def check_appointments(driver: webdriver.Chrome, service: str, is_referral: bool):
+def check_appointments(driver: webdriver.Chrome, service: str, is_referral: bool, service_subtype: str = None):
     if not is_referral:
         driver.maximize_window()
 
@@ -118,16 +189,19 @@ def check_appointments(driver: webdriver.Chrome, service: str, is_referral: bool
     login_button = driver.find_element(By.ID, "LoginSubmit")
     login_button.click()
 
-    # Wait until the "Szukaj" button is clickable
-    pomin_button = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Pomiń')]"))
-    )
-
-    # Click the button
-    pomin_button.click()
+    # Skip promo screen if present
+    try:
+        pomin_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Pomiń')]"))
+        )
+        pomin_button.click()
+    except Exception:
+        pass
 
     if is_referral:
         referral_path(driver, service)
+    elif service_subtype:
+        guided_path(driver, service, service_subtype)
     else:
         non_referral_path(driver, service)
 
@@ -187,7 +261,12 @@ async def monitor_appointments():
             for service in SERVICES:
                 # Set up the web driver
                 driver = webdriver.Chrome()
-                appointments = check_appointments(driver, service['name'], service['is_referral'])
+                appointments = check_appointments(
+                    driver,
+                    service['name'],
+                    service['is_referral'],
+                    service.get('service_subtype'),
+                )
                 if appointments:
                     await send_telegram_message(service, appointments)
         except KeyboardInterrupt:
